@@ -36,6 +36,54 @@ std::vector<RoadMark> Lane::get_roadmarks(const double s_start, const double s_e
                                           s_end,
                                           [](const RoadMarkGroup& rmg, const double& s) -> bool { return (rmg.lanesection_s0 + rmg.s_offset) < s; });
 
+    auto const add_broken_marks = [this](
+        RoadMarkGroup const& roadmark_group,
+        double roadmark_group_s0,
+        double s_end_roadmark_group,
+        double s_end,
+        double width,
+        double t_offset,
+        std::vector<RoadMark>& roadmarks
+    ) {
+        for (double s_start_single_roadmark = roadmark_group_s0; s_start_single_roadmark < s_end_roadmark_group;
+                s_start_single_roadmark += (ROADMARK_BROKEN_LENGTH + ROADMARK_BROKEN_SPACE))
+        {
+            const double s_end_single_roadmark = std::min(s_end, s_start_single_roadmark + ROADMARK_BROKEN_LENGTH);
+            roadmarks.push_back(RoadMark(this->key.road_id,
+                                            this->key.lanesection_s0,
+                                            this->id,
+                                            roadmark_group_s0,
+                                            s_start_single_roadmark,
+                                            s_end_single_roadmark,
+                                            t_offset,
+                                            width,
+                                            roadmark_group.type,
+                                            roadmark_group.color));
+        }
+    };
+
+    auto const add_solid_mark = [this](
+        RoadMarkGroup const& roadmark_group,
+        double roadmark_group_s0,
+        double s_start_roadmark_group,
+        double s_end_roadmark_group,
+        double s_end,
+        double width,
+        double t_offset,
+        std::vector<RoadMark>& roadmarks
+    ) {
+        roadmarks.push_back(RoadMark(this->key.road_id,
+                                        this->key.lanesection_s0,
+                                        this->id,
+                                        roadmark_group_s0,
+                                        s_start_roadmark_group,
+                                        s_end_roadmark_group,
+                                        t_offset,
+                                        width,
+                                        roadmark_group.type,
+                                        roadmark_group.color)); // (stesim): added color member
+    };
+
     std::vector<RoadMark> roadmarks;
     for (auto rm_group_iter = s_start_rm_iter; rm_group_iter != s_end_rm_iter; rm_group_iter++)
     {
@@ -47,23 +95,10 @@ std::vector<RoadMark> Lane::get_roadmarks(const double s_start, const double s_e
                                                 ? s_end
                                                 : std::min(std::next(rm_group_iter)->lanesection_s0 + std::next(rm_group_iter)->s_offset, s_end);
 
-        double width = roadmark_group.weight == "bold" ? ROADMARK_WEIGHT_BOLD_WIDTH : ROADMARK_WEIGHT_STANDARD_WIDTH;
-        if (roadmark_group.roadmark_lines.empty())
-        {
-            if (roadmark_group.width > 0)
-                width = roadmark_group.width;
-
-            roadmarks.push_back(RoadMark(this->key.road_id,
-                                         this->key.lanesection_s0,
-                                         this->id,
-                                         roadmark_group_s0,
-                                         s_start_roadmark_group,
-                                         s_end_roadmark_group,
-                                         0,
-                                         width,
-                                         roadmark_group.type));
-        }
-        else
+        double width = roadmark_group.width > 0
+            ? roadmark_group.width
+            : roadmark_group.weight == "bold" ? ROADMARK_WEIGHT_BOLD_WIDTH : ROADMARK_WEIGHT_STANDARD_WIDTH;
+        if (!roadmark_group.roadmark_lines.empty())
         {
             for (const RoadMarksLine& roadmarks_line : roadmark_group.roadmark_lines)
             {
@@ -86,9 +121,38 @@ std::vector<RoadMark> Lane::get_roadmarks(const double s_start, const double s_e
                                                  s_end_single_roadmark,
                                                  roadmarks_line.t_offset,
                                                  width,
-                                                 roadmark_group.type + roadmarks_line.name));
+                                                 roadmark_group.type + roadmarks_line.name,
+                                                 roadmark_group.color)); // (stesim): added color member
                 }
             }
+        }
+        else if (roadmark_group.type == "broken") // (stesim): added support for broken marks without explicit line definitions
+        {
+            add_broken_marks(roadmark_group, roadmark_group_s0, s_end_roadmark_group, s_end, width, 0.0, roadmarks);
+        }
+        else if (roadmark_group.type == "solid solid") // (stesim): added support for solid solid marks
+        {
+            add_solid_mark(roadmark_group, roadmark_group_s0, s_start_roadmark_group, s_end_roadmark_group, s_end, width, -width, roadmarks);
+            add_solid_mark(roadmark_group, roadmark_group_s0, s_start_roadmark_group, s_end_roadmark_group, s_end, width, +width, roadmarks);
+        }
+        else if (roadmark_group.type == "solid broken") // (stesim): added support for solid broken marks
+        {
+            add_solid_mark(roadmark_group, roadmark_group_s0, s_start_roadmark_group, s_end_roadmark_group, s_end, width, -width, roadmarks);
+            add_broken_marks(roadmark_group, roadmark_group_s0, s_end_roadmark_group, s_end, width, +width, roadmarks);
+        }
+        else if (roadmark_group.type == "broken solid") // (stesim): added support for broken solid marks
+        {
+            add_broken_marks(roadmark_group, roadmark_group_s0, s_end_roadmark_group, s_end, width, -width, roadmarks);
+            add_solid_mark(roadmark_group, roadmark_group_s0, s_start_roadmark_group, s_end_roadmark_group, s_end, width, +width, roadmarks);
+        }
+        else if (roadmark_group.type == "broken broken") // (stesim): added support for broken broken marks
+        {
+            add_broken_marks(roadmark_group, roadmark_group_s0, s_end_roadmark_group, s_end, width, -width, roadmarks);
+            add_broken_marks(roadmark_group, roadmark_group_s0, s_end_roadmark_group, s_end, width, +width, roadmarks);
+        }
+        else
+        {
+            add_solid_mark(roadmark_group, roadmark_group_s0, s_start_roadmark_group, s_end_roadmark_group, s_end, width, 0.0, roadmarks);
         }
     }
 

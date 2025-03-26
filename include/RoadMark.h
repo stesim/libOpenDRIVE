@@ -10,6 +10,8 @@ namespace odr
 {
 const double ROADMARK_WEIGHT_STANDARD_WIDTH = 0.12;
 const double ROADMARK_WEIGHT_BOLD_WIDTH = 0.25;
+const double ROADMARK_BROKEN_LENGTH = 3.0;
+const double ROADMARK_BROKEN_SPACE = 6.0;
 
 struct RoadMarksLine : public XmlNode
 {
@@ -111,7 +113,8 @@ struct RoadMark
              double      s_end,
              double      t_offset,
              double      width,
-             std::string type);
+             std::string type,
+             std::string color); // (stesim): added color member
 
     std::string road_id = "";
     double      lanesection_s0 = 0;
@@ -124,6 +127,8 @@ struct RoadMark
     double width = 0;
 
     std::string type = "";
+
+    std::string color = ""; // (stesim): added color member
 };
 
 } // namespace odr
